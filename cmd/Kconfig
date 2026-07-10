@@ -423,6 +423,14 @@ config APPENDED_PAYLOAD_BASE
 	  before U-Boot relocates itself to the top of DRAM. The appended
 	  payload is found at this address plus the U-Boot image size.
 
+config APPENDED_RAMDISK_SIZE
+	hex "Exact size of the appended raw ramdisk"
+	depends on CMD_BOOTAPPENDED
+	default 0x0
+	help
+	  Exact byte size passed to booti for a raw compressed ramdisk.
+	  The payload build sets this from the final initramfs artifact.
+
 config BOOTM_LINUX
 	bool "Support booting Linux OS images"
 	depends on CMD_BOOTM || CMD_BOOTZ || CMD_BOOTI
