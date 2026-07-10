@@ -32,6 +32,8 @@ DECLARE_GLOBAL_DATA_PTR;
 #define ZUMAPRO_WDT_DISABLE_MASK		((1 << 5) | (1 << 2))
 #define ZUMAPRO_SIMPLEFB_BASE			0xfac00000
 #define ZUMAPRO_SIMPLEFB_SIZE			SZ_16M
+#define ZUMAPRO_PSTORE_BASE			0xfd3ff000
+#define ZUMAPRO_PSTORE_SIZE			SZ_4M
 
 #define lmb_alloc(size, addr) \
 	lmb_alloc_mem(LMB_MEM_ALLOC_ANY, SZ_2M, addr, size, LMB_NONE)
@@ -54,7 +56,10 @@ struct efi_capsule_update_info update_info = {
  * peripheral block, and a sentinel at the end. This is filled in
  * dynamically.
  */
-static struct mm_region exynos_mem_map[CONFIG_NR_DRAM_BANKS + 5] = {
+#define EXYNOS_STATIC_MAP_COUNT 5
+
+static struct mm_region
+exynos_mem_map[EXYNOS_STATIC_MAP_COUNT + CONFIG_NR_DRAM_BANKS + 1] = {
 	{
 		/* Peripheral MMIO block */
 		.virt = 0x10000000UL,
@@ -86,11 +91,17 @@ static struct mm_region exynos_mem_map[CONFIG_NR_DRAM_BANKS + 5] = {
 		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
 			 PTE_BLOCK_INNER_SHARE,
 	},
+	{
+		/* Persistent Linux console used by the temporary pstore reader */
+		.virt = ZUMAPRO_PSTORE_BASE,
+		.phys = ZUMAPRO_PSTORE_BASE,
+		.size = ZUMAPRO_PSTORE_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE,
+	},
 };
 
 struct mm_region *mem_map = exynos_mem_map;
-
-#define EXYNOS_STATIC_MAP_COUNT 4
 
 static bool exynos_addr_in_dram(phys_addr_t addr, ulong size)
 {
@@ -164,8 +175,8 @@ static void exynos_parse_dram_banks(const void *fdt_base)
 		if (strncmp(fdt_get_name(fdt_base, offset, NULL), "memory", 6))
 			continue;
 
-		for (i = 0; ; i++) {
-			if (index > CONFIG_NR_DRAM_BANKS)
+	for (i = 0; ; i++) {
+			if (index >= ARRAY_SIZE(exynos_mem_map) - 1)
 				break;
 
 			mem_addr = fdtdec_get_addr_size_fixed(fdt_base, offset,
