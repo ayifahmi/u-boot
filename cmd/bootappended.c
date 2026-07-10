@@ -92,27 +92,35 @@ static bool fdt_looks_valid(const u8 *q)
 }
 
 /*
- * Scan [start, start + len) byte-by-byte for a valid FDT header. The
- * appended device tree is concatenated (unpadded) after the kernel,
- * whose true size cannot be derived from the arm64 Image header, and
- * after a compressed kernel it ends at an arbitrary byte offset, so the
- * tree's magic is generally not aligned and the scan must step by 1.
+ * Scan [start, start + len) byte-by-byte for valid FDT headers and
+ * return the largest one. The kernel may embed tiny device trees
+ * (e.g. drivers/of/empty_root.dtb, ~131 bytes) that must not shadow
+ * the real appended FDT; by scanning the entire window and picking
+ * the largest tree we naturally skip those embedded stubs without
+ * needing to know the exact kernel binary bounds.
  */
 static ulong scan_for_fdt(ulong start, ulong len)
 {
 	void *p = map_sysmem(start, len);
 	const u8 *base = p;
-	ulong off, found = 0;
+	ulong off, best = 0;
+	u32 best_sz = 0, ts;
 
 	for (off = 0; off + 0x28 <= len; off++) {
-		if (fdt_looks_valid(base + off)) {
-			found = start + off;
-			break;
+		if (!fdt_looks_valid(base + off))
+			continue;
+		ts = ((u32)base[off + 4] << 24) |
+		     ((u32)base[off + 5] << 16) |
+		     ((u32)base[off + 6] << 8)  |
+		      (u32)base[off + 7];
+		if (ts > best_sz) {
+			best_sz = ts;
+			best = start + off;
 		}
 	}
 	unmap_sysmem(p);
 
-	return found;
+	return best;
 }
 
 /*
